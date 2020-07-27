@@ -41,6 +41,8 @@ from oauth2client.client import flow_from_clientsecrets, OAuth2WebServerFlow, \
     AccessTokenRefreshError, OAuth2Credentials
 from six.moves.urllib.parse import urlencode
 
+OIDC_CACHED = {}
+
 __all__ = ['OpenIDConnect', 'MemoryCredentials']
 
 logger = logging.getLogger(__name__)
@@ -900,9 +902,17 @@ class OpenIDConnect(object):
             request['client_id'] = self.client_secrets['client_id']
             request['client_secret'] = self.client_secrets['client_secret']
 
+        if token in OIDC_CACHED:
+            cache_content = OIDC_CACHED[token]
+            if cache_content['exp'] > time.time():
+                return cache_content
+
         resp, content = httplib2.Http(disable_ssl_certificate_validation=True).request(
             self.client_secrets['token_introspection_uri'], 'POST',
             urlencode(request), headers=headers)
-        # TODO: Cache this reply
+
+        if resp['status'] == '200':
+            OIDC_CACHED[token] = _json_loads(content)
+            return OIDC_CACHED[token]
         return _json_loads(content)
 
